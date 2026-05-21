@@ -7,20 +7,23 @@ namespace HTMLBuilder.Ui;
 
 public sealed class MainForm : Form
 {
+    private readonly AppSettings settings;
     private HtmlBuilderDocument document = new();
     private string? currentPath;
     private readonly Dictionary<string, TreeNode> treeNodes = [];
     private readonly TreeView structureTree = new();
     private readonly TextBox htmlPreview = new();
 
-    public MainForm()
+    public MainForm(AppSettings settings)
     {
+        this.settings = settings;
         Text = "HTMLBuilder";
         AccessibleName = Text;
         Width = 980;
         Height = 660;
         StartPosition = FormStartPosition.CenterScreen;
         Shown += (_, _) => structureTree.Focus();
+        Shown += (_, _) => ShowInitialLanguageDialogIfNeeded();
 
         BuildMenu();
         BuildUi();
@@ -32,45 +35,47 @@ public sealed class MainForm : Form
         var menu = new MenuStrip { Dock = DockStyle.Top };
         MainMenuStrip = menu;
 
-        var fileMenu = new ToolStripMenuItem("&Archivo");
-        fileMenu.DropDownItems.Add(MenuItem("&Nuevo documento", Keys.Control | Keys.N, OnNew));
-        fileMenu.DropDownItems.Add(MenuItem("&Abrir HTML...", Keys.Control | Keys.O, OnOpenText));
-        fileMenu.DropDownItems.Add(MenuItem("&Guardar documento HTML...", Keys.Control | Keys.S, OnSave));
+        var fileMenu = new ToolStripMenuItem(Localizer.T("menu.file"));
+        fileMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.new"), Keys.Control | Keys.N, OnNew));
+        fileMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.open"), Keys.Control | Keys.O, OnOpenText));
+        fileMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.save"), Keys.Control | Keys.S, OnSave));
+        fileMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.preferences"), Keys.Control | Keys.Oemcomma, OnPreferences));
         fileMenu.DropDownItems.Add(new ToolStripSeparator());
-        fileMenu.DropDownItems.Add(MenuItem("Salir", Keys.Alt | Keys.F4, (_, _) => Close()));
+        fileMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.exit"), Keys.Alt | Keys.F4, (_, _) => Close()));
 
-        var documentMenu = new ToolStripMenuItem("&Documento");
-        documentMenu.DropDownItems.Add(MenuItem("&Propiedades del documento...", Keys.Control | Keys.P, OnProperties));
+        var documentMenu = new ToolStripMenuItem(Localizer.T("menu.document"));
+        documentMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.properties"), Keys.Control | Keys.P, OnProperties));
 
-        var elementMenu = new ToolStripMenuItem("&Elemento");
-        elementMenu.DropDownItems.Add(MenuItem("Agregar elemento &hijo...", Keys.Control | Keys.E, OnAddChild));
-        elementMenu.DropDownItems.Add(MenuItem("&Editar elemento...", Keys.F2, OnEditElement));
-        elementMenu.DropDownItems.Add(MenuItem("Eliminar elemento", Keys.Delete, OnDeleteElement));
+        var elementMenu = new ToolStripMenuItem(Localizer.T("menu.element"));
+        elementMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.addChild"), Keys.Control | Keys.E, OnAddChild));
+        elementMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.editElement"), Keys.F2, OnEditElement));
+        elementMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.deleteElement"), Keys.Delete, OnDeleteElement));
         elementMenu.DropDownItems.Add(new ToolStripSeparator());
-        elementMenu.DropDownItems.Add(MenuItem("Mover hacia arriba", Keys.Control | Keys.Up, (_, _) => MoveSelected(-1)));
-        elementMenu.DropDownItems.Add(MenuItem("Mover hacia abajo", Keys.Control | Keys.Down, (_, _) => MoveSelected(1)));
+        elementMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.moveUp"), Keys.Control | Keys.Up, (_, _) => MoveSelected(-1)));
+        elementMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.moveDown"), Keys.Control | Keys.Down, (_, _) => MoveSelected(1)));
 
-        var attributeMenu = new ToolStripMenuItem("&Atributos");
-        attributeMenu.DropDownItems.Add(MenuItem("Agregar o modificar atributo...", Keys.Control | Keys.A, OnAddAttribute));
-        attributeMenu.DropDownItems.Add(MenuItem("Quitar atributo...", Keys.Control | Keys.R, OnRemoveAttribute));
+        var attributeMenu = new ToolStripMenuItem(Localizer.T("menu.attributes"));
+        attributeMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.addAttribute"), Keys.Control | Keys.A, OnAddAttribute));
+        attributeMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.removeAttribute"), Keys.Control | Keys.R, OnRemoveAttribute));
 
-        var viewMenu = new ToolStripMenuItem("&Vista");
-        viewMenu.DropDownItems.Add(MenuItem("Actualizar vista previa", Keys.F5, (_, _) => RefreshAll()));
-        viewMenu.DropDownItems.Add(MenuItem("Abrir en navegador", Keys.Control | Keys.F5, OnOpenInBrowser));
-        viewMenu.DropDownItems.Add(MenuItem("Copiar HTML", Keys.Control | Keys.Shift | Keys.C, OnCopyHtml));
+        var viewMenu = new ToolStripMenuItem(Localizer.T("menu.view"));
+        viewMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.refreshPreview"), Keys.F5, (_, _) => RefreshAll()));
+        viewMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.openBrowser"), Keys.Control | Keys.F5, OnOpenInBrowser));
+        viewMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.copyHtml"), Keys.Control | Keys.Shift | Keys.C, OnCopyHtml));
 
-        var helpMenu = new ToolStripMenuItem("A&yuda");
-        helpMenu.DropDownItems.Add(MenuItem("Acerca de la aplicación", Keys.None, OnAbout));
+        var helpMenu = new ToolStripMenuItem(Localizer.T("menu.help"));
+        helpMenu.DropDownItems.Add(MenuItem(Localizer.T("menu.about"), Keys.None, OnAbout));
 
         menu.Items.AddRange([fileMenu, documentMenu, elementMenu, attributeMenu, viewMenu, helpMenu]);
         Controls.Add(menu);
+        Controls.SetChildIndex(menu, 0);
     }
 
     private void BuildUi()
     {
         structureTree.Dock = DockStyle.Fill;
         structureTree.HideSelection = false;
-        structureTree.AccessibleName = "Árbol de estructura del documento";
+        structureTree.AccessibleName = Localizer.T("access.tree");
         structureTree.NodeMouseDoubleClick += (_, _) => OnEditElement(this, EventArgs.Empty);
 
         htmlPreview.Dock = DockStyle.Fill;
@@ -79,7 +84,7 @@ public sealed class MainForm : Form
         htmlPreview.WordWrap = false;
         htmlPreview.ScrollBars = ScrollBars.Both;
         htmlPreview.Font = new Font(FontFamily.GenericMonospace, 10);
-        htmlPreview.AccessibleName = "Vista previa del HTML generado";
+        htmlPreview.AccessibleName = Localizer.T("access.preview");
 
         var layout = new TableLayoutPanel
         {
@@ -101,6 +106,46 @@ public sealed class MainForm : Form
         layout.Controls.Add(treePanel, 0, 0);
         layout.Controls.Add(previewPanel, 1, 0);
         Controls.Add(layout);
+    }
+
+    private void RebuildChrome()
+    {
+        if (MainMenuStrip is not null)
+        {
+            Controls.Remove(MainMenuStrip);
+            MainMenuStrip.Dispose();
+            MainMenuStrip = null;
+        }
+
+        BuildMenu();
+        structureTree.AccessibleName = Localizer.T("access.tree");
+        htmlPreview.AccessibleName = Localizer.T("access.preview");
+    }
+
+    private void ShowInitialLanguageDialogIfNeeded()
+    {
+        if (settings.HasAskedLanguage)
+        {
+            return;
+        }
+
+        using var dialog = new LanguageChoiceDialog();
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            ApplyLanguage(dialog.SelectedLanguage);
+        }
+
+        settings.HasAskedLanguage = true;
+        settings.Save();
+    }
+
+    private void ApplyLanguage(string language)
+    {
+        settings.Language = Localizer.NormalizeLanguage(language);
+        Localizer.CurrentLanguage = settings.Language;
+        settings.Save();
+        RebuildChrome();
+        RefreshAll();
     }
 
     private void RefreshAll()
@@ -152,7 +197,7 @@ public sealed class MainForm : Form
 
     private void OnNew(object? sender, EventArgs eventArgs)
     {
-        if (MessageBox.Show(this, "¿Crear un documento nuevo y descartar el actual?", "Nuevo documento", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+        if (MessageBox.Show(this, Localizer.T("dialog.newConfirm"), Localizer.T("title.newDocument"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
         {
             return;
         }
@@ -166,8 +211,8 @@ public sealed class MainForm : Form
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Abrir HTML",
-            Filter = "HTML (*.html;*.htm)|*.html;*.htm|Todos los archivos (*.*)|*.*"
+            Title = Localizer.T("dialog.openTitle"),
+            Filter = Localizer.T("dialog.openFilter")
         };
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
@@ -184,7 +229,7 @@ public sealed class MainForm : Form
         }
         catch (IOException ex)
         {
-            MessageBox.Show(this, ex.Message, "No se pudo abrir el archivo", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, Localizer.T("dialog.openError"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -192,9 +237,9 @@ public sealed class MainForm : Form
     {
         using var dialog = new SaveFileDialog
         {
-            Title = "Guardar HTML",
-            Filter = "HTML (*.html)|*.html",
-            FileName = currentPath ?? "pagina.html"
+            Title = Localizer.T("dialog.saveTitle"),
+            Filter = Localizer.T("dialog.saveFilter"),
+            FileName = currentPath ?? Localizer.T("dialog.defaultFileName")
         };
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
@@ -209,7 +254,7 @@ public sealed class MainForm : Form
         }
         catch (IOException ex)
         {
-            MessageBox.Show(this, ex.Message, "No se pudo guardar el archivo", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, Localizer.T("dialog.saveError"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -226,17 +271,28 @@ public sealed class MainForm : Form
         RefreshAll();
     }
 
+    private void OnPreferences(object? sender, EventArgs eventArgs)
+    {
+        using var dialog = new PreferencesDialog(settings.Language);
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        ApplyLanguage(dialog.SelectedLanguage);
+    }
+
     private void OnAddChild(object? sender, EventArgs eventArgs)
     {
         var parent = SelectedNode();
         var allowedChildren = TagCatalog.TagsForParent(parent.Tag);
         if (allowedChildren.Count == 0)
         {
-            MessageBox.Show(this, $"La etiqueta {parent.Tag} no puede contener elementos hijos.", "Estructura no válida", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, string.Format(Localizer.T("msg.noChildren"), parent.Tag), Localizer.T("title.invalidStructure"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        using var dialog = new ElementDialog("Agregar elemento hijo", parent.Tag);
+        using var dialog = new ElementDialog(Localizer.T("title.addChild"), parent.Tag);
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
             return;
@@ -253,12 +309,12 @@ public sealed class MainForm : Form
         var node = SelectedNode();
         if (ReferenceEquals(node, document.Root) || ReferenceEquals(node, document.Head) || ReferenceEquals(node, document.Body))
         {
-            MessageBox.Show(this, "Los nodos estructurales html, head y body no se editan directamente. Use Documento > Propiedades para el idioma y el título.", "Estructura del documento", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, Localizer.T("msg.structuralNotEditable"), Localizer.T("title.documentStructure"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
         var parent = document.FindParent(node.NodeId) ?? document.Body;
-        using var dialog = new ElementDialog("Editar elemento", parent.Tag, node.Tag, node.Text, node.Attributes);
+        using var dialog = new ElementDialog(Localizer.T("title.editElement"), parent.Tag, node.Tag, node.Text, node.Attributes);
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
             return;
@@ -275,11 +331,11 @@ public sealed class MainForm : Form
         var node = SelectedNode();
         if (ReferenceEquals(node, document.Root) || ReferenceEquals(node, document.Head) || ReferenceEquals(node, document.Body))
         {
-            MessageBox.Show(this, "No se pueden eliminar los nodos estructurales html, head o body.", "Estructura del documento", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, Localizer.T("msg.structuralNotDelete"), Localizer.T("title.documentStructure"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        if (MessageBox.Show(this, $"¿Eliminar {node.Label}?", "Confirmar eliminación", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+        if (MessageBox.Show(this, string.Format(Localizer.T("msg.deleteConfirm"), node.Label), Localizer.T("title.confirmDelete"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
         {
             document.RemoveNode(node.NodeId);
             RefreshAll();
@@ -295,7 +351,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        MessageBox.Show(this, "No se puede mover más en esa dirección.", "Mover elemento", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(this, Localizer.T("msg.cannotMove"), Localizer.T("title.moveElement"), MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void OnAddAttribute(object? sender, EventArgs eventArgs)
@@ -303,7 +359,7 @@ public sealed class MainForm : Form
         var node = SelectedNode();
         if (TagCatalog.AttributesFor(node.Tag).Count == 0)
         {
-            MessageBox.Show(this, $"La etiqueta {node.Tag} no tiene atributos editables en este editor.", "Sin atributos", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, string.Format(Localizer.T("msg.noEditableAttributes"), node.Tag), Localizer.T("title.noAttributes"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -324,7 +380,7 @@ public sealed class MainForm : Form
         var node = SelectedNode();
         if (node.Attributes.Count == 0)
         {
-            MessageBox.Show(this, "El elemento seleccionado no tiene atributos.", "Sin atributos", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, Localizer.T("msg.noAttributesOnElement"), Localizer.T("title.noAttributes"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -341,7 +397,7 @@ public sealed class MainForm : Form
     private void OnCopyHtml(object? sender, EventArgs eventArgs)
     {
         Clipboard.SetText(document.ToHtml());
-        MessageBox.Show(this, "El HTML se copió al portapapeles.", "Copiar HTML", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(this, Localizer.T("msg.copiedHtml"), Localizer.T("title.copyHtml"), MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void OnOpenInBrowser(object? sender, EventArgs eventArgs)
@@ -351,7 +407,7 @@ public sealed class MainForm : Form
             var previewDirectory = Path.Combine(AppContext.BaseDirectory, "preview");
             Directory.CreateDirectory(previewDirectory);
 
-            var previewPath = Path.Combine(previewDirectory, "documento-actual.html");
+            var previewPath = Path.Combine(previewDirectory, Localizer.T("dialog.previewFileName"));
             File.WriteAllText(previewPath, document.ToHtml());
 
             Process.Start(new ProcessStartInfo
@@ -362,7 +418,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Win32Exception)
         {
-            MessageBox.Show(this, ex.Message, "No se pudo abrir la vista previa en el navegador", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.Message, Localizer.T("dialog.browserError"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -370,8 +426,8 @@ public sealed class MainForm : Form
     {
         MessageBox.Show(
             this,
-            "HTMLBuilder\r\n\r\nAplicación de escritorio orientada a crear páginas HTML estructuradas, accesibles y fáciles de mantener.",
-            "Acerca de la aplicación",
+            Localizer.T("about.text"),
+            Localizer.T("menu.about"),
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
     }
@@ -404,8 +460,8 @@ internal sealed class AttributeChoiceDialog : Form
 
     public AttributeChoiceDialog(string[] attributes)
     {
-        Text = "Quitar atributo";
-        AccessibleName = "Quitar atributo";
+        Text = Localizer.T("button.removeAttribute");
+        AccessibleName = Localizer.T("button.removeAttribute");
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         MaximizeBox = false;
@@ -415,14 +471,14 @@ internal sealed class AttributeChoiceDialog : Form
 
         list.Dock = DockStyle.Fill;
         list.Items.AddRange(attributes);
-        list.AccessibleName = "Atributos del elemento seleccionado";
+        list.AccessibleName = Localizer.T("access.selectedAttributes");
         if (list.Items.Count > 0)
         {
             list.SelectedIndex = 0;
         }
 
-        var okButton = new Button { Text = "Quitar atributo", DialogResult = DialogResult.OK, AutoSize = true };
-        var cancelButton = new Button { Text = "Cancelar", DialogResult = DialogResult.Cancel, AutoSize = true };
+        var okButton = new Button { Text = Localizer.T("button.removeAttribute"), DialogResult = DialogResult.OK, AutoSize = true };
+        var cancelButton = new Button { Text = Localizer.T("button.cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
         AcceptButton = okButton;
         CancelButton = cancelButton;
 

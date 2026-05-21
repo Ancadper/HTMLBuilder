@@ -8,8 +8,8 @@ internal sealed partial class ElementDialog : Form
     private readonly string parentTag;
     private readonly ComboBox tagCombo = new();
     private readonly Label parentHintLabel = CreateLabel(string.Empty);
-    private readonly Label fieldTitleLabel = CreateLabel("Campos de esta etiqueta");
-    private readonly Label textLabel = CreateLabel("Contenido textual");
+    private readonly Label fieldTitleLabel = CreateLabel(Localizer.T("label.tagFields"));
+    private readonly Label textLabel = CreateLabel(Localizer.T("label.textContent"));
     private readonly TextBox textBox = new();
     private readonly TableLayoutPanel fieldPanel = new();
     private readonly ListBox attributeList = new();
@@ -32,7 +32,7 @@ internal sealed partial class ElementDialog : Form
         var availableTags = TagCatalog.TagsForParent(parentTag);
         tagCombo.DropDownStyle = ComboBoxStyle.DropDownList;
         tagCombo.Items.AddRange(availableTags.ToArray());
-        tagCombo.AccessibleName = "Etiqueta HTML. Pulse F1 para obtener ayuda sobre la etiqueta seleccionada.";
+        tagCombo.AccessibleName = Localizer.T("access.tagCombo");
         tagCombo.SelectedIndexChanged += (_, _) => RebuildForSelectedTag();
         tagCombo.Enabled = tagCombo.Items.Count > 1;
 
@@ -46,22 +46,22 @@ internal sealed partial class ElementDialog : Form
         }
 
         parentHintLabel.Text = BuildParentHint(parentTag, availableTags);
-        parentHintLabel.AccessibleName = "Información sobre la estructura permitida";
+        parentHintLabel.AccessibleName = Localizer.T("access.parentHint");
 
         textBox.Multiline = true;
         textBox.ScrollBars = ScrollBars.Both;
         textBox.AcceptsReturn = true;
         textBox.AcceptsTab = false;
         textBox.Text = text;
-        textBox.AccessibleName = "Contenido textual";
+        textBox.AccessibleName = Localizer.T("access.textContent");
 
         fieldPanel.Dock = DockStyle.Fill;
         fieldPanel.AutoSize = true;
         fieldPanel.ColumnCount = 1;
-        fieldPanel.AccessibleName = "Campos de la etiqueta";
+        fieldPanel.AccessibleName = Localizer.T("access.tagFields");
 
         attributeList.Dock = DockStyle.Fill;
-        attributeList.AccessibleName = "Atributos del elemento";
+        attributeList.AccessibleName = Localizer.T("access.attributeList");
 
         var layout = new TableLayoutPanel
         {
@@ -83,7 +83,7 @@ internal sealed partial class ElementDialog : Form
             }
         };
 
-        layout.Controls.Add(CreateLabel("Etiqueta HTML"), 0, 0);
+        layout.Controls.Add(CreateLabel(Localizer.T("label.htmlTag")), 0, 0);
         layout.Controls.Add(tagCombo, 0, 1);
         layout.Controls.Add(parentHintLabel, 0, 2);
         layout.Controls.Add(fieldTitleLabel, 0, 3);
@@ -117,13 +117,13 @@ internal sealed partial class ElementDialog : Form
     {
         if (!TagPattern.IsMatch(SelectedTag))
         {
-            MessageBox.Show(this, "La etiqueta seleccionada no es válida.", "Etiqueta no válida", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, Localizer.T("msg.invalidTag"), Localizer.T("title.invalidTag"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
         if (!TagCatalog.CanAddChild(parentTag, SelectedTag))
         {
-            MessageBox.Show(this, $"La etiqueta {SelectedTag} no se puede agregar dentro de {parentTag}.", "Estructura no válida", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, string.Format(Localizer.T("msg.childNotAllowed"), SelectedTag, parentTag), Localizer.T("title.invalidStructure"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
@@ -134,7 +134,7 @@ internal sealed partial class ElementDialog : Form
         {
             if (!TagCatalog.IsAttributeAllowed(SelectedTag, attribute))
             {
-                MessageBox.Show(this, $"El atributo {attribute} no es válido para la etiqueta {SelectedTag}.", "Atributo no permitido", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, string.Format(Localizer.T("msg.attributeNotAllowed"), attribute, SelectedTag), Localizer.T("title.attributeNotAllowed"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
         }
@@ -143,20 +143,20 @@ internal sealed partial class ElementDialog : Form
         {
             if (!attributes.TryGetValue(field.AttributeName, out var value) || (!field.AllowsEmpty && string.IsNullOrWhiteSpace(value)))
             {
-                MessageBox.Show(this, $"La etiqueta {SelectedTag} necesita el campo {field.Label}.", "Campo requerido", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, string.Format(Localizer.T("msg.requiredField"), SelectedTag, field.Label), Localizer.T("title.requiredField"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
         }
 
         if (string.Equals(SelectedTag, "meta", StringComparison.OrdinalIgnoreCase) && !HasValidMetaCombination())
         {
-            MessageBox.Show(this, "La etiqueta meta debe usar charset, o bien name junto con content.", "Meta incompleto", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, Localizer.T("msg.invalidMeta"), Localizer.T("title.incompleteMeta"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
         if (string.Equals(SelectedTag, "a", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(textBox.Text))
         {
-            MessageBox.Show(this, "La etiqueta a necesita texto visible que explique el destino.", "Texto requerido", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, Localizer.T("msg.anchorNeedsText"), Localizer.T("title.requiredText"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
@@ -220,7 +220,7 @@ internal sealed partial class ElementDialog : Form
         {
             fieldPanel.RowCount = 1;
             fieldPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            fieldPanel.Controls.Add(CreateLabel("Esta etiqueta no requiere campos especiales. Puede añadir atributos válidos abajo."), 0, 0);
+            fieldPanel.Controls.Add(CreateLabel(Localizer.T("hint.noSpecialFields")), 0, 0);
             fieldPanel.ResumeLayout();
             return;
         }
@@ -231,7 +231,7 @@ internal sealed partial class ElementDialog : Form
         {
             fieldPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             fieldPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            var labelText = field.Required ? $"{field.Label} obligatorio" : field.Label;
+            var labelText = field.Required ? string.Format(Localizer.T("label.requiredSuffix"), field.Label) : field.Label;
             var input = new TextBox
             {
                 Dock = DockStyle.Fill,
@@ -261,7 +261,7 @@ internal sealed partial class ElementDialog : Form
     private Panel CreateAttributePanel()
     {
         var panel = new Panel { Dock = DockStyle.Fill };
-        var label = new Label { Text = "Atributos válidos", Dock = DockStyle.Top, AutoSize = true };
+        var label = new Label { Text = Localizer.T("label.validAttributes"), Dock = DockStyle.Top, AutoSize = true };
         var buttons = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
@@ -269,8 +269,8 @@ internal sealed partial class ElementDialog : Form
             FlowDirection = FlowDirection.RightToLeft
         };
 
-        var addButton = new Button { Text = "Agregar o modificar atributo", AutoSize = true };
-        var removeButton = new Button { Text = "Quitar atributo", AutoSize = true };
+        var addButton = new Button { Text = Localizer.T("button.addAttribute"), AutoSize = true };
+        var removeButton = new Button { Text = Localizer.T("button.removeAttribute"), AutoSize = true };
         addButton.Click += (_, _) => AddOrEditAttribute();
         removeButton.Click += (_, _) => RemoveSelectedAttribute();
         buttons.Controls.Add(removeButton);
@@ -286,7 +286,7 @@ internal sealed partial class ElementDialog : Form
     {
         if (TagCatalog.AttributesFor(SelectedTag).Count == 0)
         {
-            MessageBox.Show(this, $"La etiqueta {SelectedTag} no tiene atributos editables en este editor.", "Sin atributos", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, string.Format(Localizer.T("msg.noEditableAttributes"), SelectedTag), Localizer.T("title.noAttributes"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -312,7 +312,7 @@ internal sealed partial class ElementDialog : Form
     {
         if (attributeList.SelectedItem is not AttributeListItem selected)
         {
-            MessageBox.Show(this, "No hay ningún atributo seleccionado.", "Quitar atributo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, Localizer.T("msg.noSelectedAttribute"), Localizer.T("button.removeAttribute"), MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -364,8 +364,8 @@ internal sealed partial class ElementDialog : Form
 
     private FlowLayoutPanel CreateButtonRow(Action acceptAction)
     {
-        var okButton = new Button { Text = "Guardar cambios", DialogResult = DialogResult.None, AutoSize = true };
-        var cancelButton = new Button { Text = "Cancelar", DialogResult = DialogResult.Cancel, AutoSize = true };
+        var okButton = new Button { Text = Localizer.T("button.save"), DialogResult = DialogResult.None, AutoSize = true };
+        var cancelButton = new Button { Text = Localizer.T("button.cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
         okButton.Click += (_, _) => acceptAction();
         AcceptButton = okButton;
         CancelButton = cancelButton;
@@ -385,15 +385,15 @@ internal sealed partial class ElementDialog : Form
     {
         if (availableTags.Count == 0)
         {
-            return $"La etiqueta {parentTag} no admite nuevos elementos hijo.";
+            return string.Format(Localizer.T("hint.parent.none"), parentTag);
         }
 
         if (availableTags.Count == 1)
         {
-            return $"La etiqueta {parentTag} solo admite el hijo {availableTags[0]}.";
+            return string.Format(Localizer.T("hint.parent.one"), parentTag, availableTags[0]);
         }
 
-        return $"La etiqueta {parentTag} admite {availableTags.Count} tipos de hijo válidos.";
+        return string.Format(Localizer.T("hint.parent.many"), parentTag, availableTags.Count);
     }
 
     private sealed record AttributeListItem(string Name, string Value)
@@ -407,25 +407,25 @@ internal sealed class AttributeDialog : Form
     private static readonly Regex AttributePattern = new("^[a-zA-Z_:][a-zA-Z0-9_:\\-.]*$", RegexOptions.Compiled);
     private readonly string tag;
     private readonly ComboBox nameCombo = new();
-    private readonly Label valueLabel = CreateLabel("Valor");
-    private readonly Label booleanHelpLabel = CreateLabel("Este atributo es booleano y no necesita valor.");
+    private readonly Label valueLabel = CreateLabel(Localizer.T("label.value"));
+    private readonly Label booleanHelpLabel = CreateLabel(Localizer.T("hint.booleanAttribute"));
     private readonly TextBox valueBox = new();
     private readonly ComboBox presetValueCombo = new();
 
     public AttributeDialog(string tag, string name = "", string value = "")
     {
         this.tag = tag;
-        ConfigureModalForm("Editar atributo", new Size(420, 190));
+        ConfigureModalForm(Localizer.T("title.editAttribute"), new Size(420, 190));
 
         var availableAttributes = TagCatalog.AttributesFor(tag);
         if (availableAttributes.Count == 0)
         {
-            throw new InvalidOperationException($"La etiqueta {tag} no tiene atributos editables.");
+            throw new InvalidOperationException(string.Format(Localizer.T("msg.tagNoAttributes"), tag));
         }
 
         nameCombo.DropDownStyle = ComboBoxStyle.DropDownList;
         nameCombo.Items.AddRange(availableAttributes.ToArray());
-        nameCombo.AccessibleName = "Nombre del atributo. Pulse F1 para obtener ayuda sobre el atributo seleccionado.";
+        nameCombo.AccessibleName = Localizer.T("access.attributeName");
         nameCombo.SelectedIndexChanged += (_, _) => RebuildValueField();
 
         if (!string.IsNullOrWhiteSpace(name) && availableAttributes.Contains(name, StringComparer.OrdinalIgnoreCase))
@@ -438,9 +438,9 @@ internal sealed class AttributeDialog : Form
         }
 
         valueBox.Text = value;
-        valueBox.AccessibleName = "Valor del atributo";
+        valueBox.AccessibleName = Localizer.T("access.attributeValue");
         presetValueCombo.DropDownStyle = ComboBoxStyle.DropDownList;
-        presetValueCombo.AccessibleName = "Valor predefinido del atributo";
+        presetValueCombo.AccessibleName = Localizer.T("access.presetValue");
 
         var layout = new TableLayoutPanel
         {
@@ -460,7 +460,7 @@ internal sealed class AttributeDialog : Form
             }
         };
 
-        layout.Controls.Add(CreateLabel("Nombre del atributo"), 0, 0);
+        layout.Controls.Add(CreateLabel(Localizer.T("label.attributeName")), 0, 0);
         layout.Controls.Add(nameCombo, 0, 1);
         layout.Controls.Add(valueLabel, 0, 2);
         layout.Controls.Add(valueBox, 0, 3);
@@ -494,13 +494,13 @@ internal sealed class AttributeDialog : Form
     {
         if (!AttributePattern.IsMatch(AttributeName))
         {
-            MessageBox.Show(this, "El nombre del atributo no es válido.", "Atributo no válido", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, Localizer.T("msg.invalidAttributeName"), Localizer.T("title.invalidAttribute"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
         if (!TagCatalog.IsAttributeAllowed(tag, AttributeName))
         {
-            MessageBox.Show(this, $"El atributo {AttributeName} no es válido para la etiqueta {tag}.", "Atributo no permitido", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, string.Format(Localizer.T("msg.attributeNotAllowed"), AttributeName, tag), Localizer.T("title.attributeNotAllowed"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
@@ -508,7 +508,7 @@ internal sealed class AttributeDialog : Form
             && !TagCatalog.AttributeAllowsEmpty(AttributeName)
             && string.IsNullOrWhiteSpace(AttributeValue))
         {
-            MessageBox.Show(this, $"El atributo {AttributeName} necesita un valor.", "Valor requerido", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, string.Format(Localizer.T("msg.attributeNeedsValue"), AttributeName), Localizer.T("title.requiredValue"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
@@ -562,8 +562,8 @@ internal sealed class AttributeDialog : Form
 
     private FlowLayoutPanel CreateButtonRow(Action acceptAction)
     {
-        var okButton = new Button { Text = "Guardar cambios", DialogResult = DialogResult.None, AutoSize = true };
-        var cancelButton = new Button { Text = "Cancelar", DialogResult = DialogResult.Cancel, AutoSize = true };
+        var okButton = new Button { Text = Localizer.T("button.save"), DialogResult = DialogResult.None, AutoSize = true };
+        var cancelButton = new Button { Text = Localizer.T("button.cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
         okButton.Click += (_, _) => acceptAction();
         AcceptButton = okButton;
         CancelButton = cancelButton;
@@ -587,8 +587,8 @@ internal sealed class DocumentDialog : Form
 
     public DocumentDialog(string title, string language)
     {
-        Text = "Propiedades del documento";
-        AccessibleName = "Propiedades del documento";
+        Text = Localizer.T("title.documentProperties");
+        AccessibleName = Localizer.T("title.documentProperties");
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         MaximizeBox = false;
@@ -597,12 +597,12 @@ internal sealed class DocumentDialog : Form
         ClientSize = new Size(420, 160);
 
         titleBox.Text = title;
-        titleBox.AccessibleName = "Título de la página";
+        titleBox.AccessibleName = Localizer.T("label.documentTitle");
         languageBox.Text = language;
-        languageBox.AccessibleName = "Idioma del documento";
+        languageBox.AccessibleName = Localizer.T("label.language");
 
-        var okButton = new Button { Text = "Guardar cambios", DialogResult = DialogResult.OK, AutoSize = true };
-        var cancelButton = new Button { Text = "Cancelar", DialogResult = DialogResult.Cancel, AutoSize = true };
+        var okButton = new Button { Text = Localizer.T("button.save"), DialogResult = DialogResult.OK, AutoSize = true };
+        var cancelButton = new Button { Text = Localizer.T("button.cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
         AcceptButton = okButton;
         CancelButton = cancelButton;
 
@@ -630,16 +630,16 @@ internal sealed class DocumentDialog : Form
             }
         };
 
-        layout.Controls.Add(new Label { Text = "Título de la página", AutoSize = true }, 0, 0);
+        layout.Controls.Add(new Label { Text = Localizer.T("label.documentTitle"), AutoSize = true }, 0, 0);
         layout.Controls.Add(titleBox, 0, 1);
-        layout.Controls.Add(new Label { Text = "Idioma", AutoSize = true }, 0, 2);
+        layout.Controls.Add(new Label { Text = Localizer.T("label.language"), AutoSize = true }, 0, 2);
         layout.Controls.Add(languageBox, 0, 3);
         layout.Controls.Add(buttons, 0, 4);
         Controls.Add(layout);
     }
 
-    public string DocumentTitle => string.IsNullOrWhiteSpace(titleBox.Text) ? "Documento sin título" : titleBox.Text.Trim();
-    public string Language => string.IsNullOrWhiteSpace(languageBox.Text) ? "es" : languageBox.Text.Trim();
+    public string DocumentTitle => string.IsNullOrWhiteSpace(titleBox.Text) ? Localizer.T("default.untitled") : titleBox.Text.Trim();
+    public string Language => string.IsNullOrWhiteSpace(languageBox.Text) ? Localizer.CurrentLanguage : languageBox.Text.Trim();
 }
 
 internal sealed class TagHelpDialog : Form
@@ -647,7 +647,7 @@ internal sealed class TagHelpDialog : Form
     public TagHelpDialog(string tag)
     {
         var help = TagCatalog.GetHelp(tag);
-        Text = $"Ayuda de la etiqueta {tag}";
+        Text = string.Format(Localizer.T("help.tag.title"), tag);
         AccessibleName = Text;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
@@ -663,14 +663,14 @@ internal sealed class TagHelpDialog : Form
             WordWrap = false,
             ScrollBars = ScrollBars.Both,
             Dock = DockStyle.Fill,
-            AccessibleName = "Ayuda de la etiqueta seleccionada",
-            Text = $"Etiqueta: {tag}{Environment.NewLine}{Environment.NewLine}" +
-                   $"Para qué sirve:{Environment.NewLine}{help.Description}{Environment.NewLine}{Environment.NewLine}" +
-                   $"Parámetros de accesibilidad habituales:{Environment.NewLine}{help.Accessibility}{Environment.NewLine}{Environment.NewLine}" +
-                   $"Consejo:{Environment.NewLine}{help.Advice}"
+            AccessibleName = Localizer.T("help.tag.access"),
+            Text = $"{string.Format(Localizer.T("help.tag.label"), tag)}{Environment.NewLine}{Environment.NewLine}" +
+                   $"{Localizer.T("help.what")}{Environment.NewLine}{help.Description}{Environment.NewLine}{Environment.NewLine}" +
+                   $"{Localizer.T("help.accessibility")}{Environment.NewLine}{help.Accessibility}{Environment.NewLine}{Environment.NewLine}" +
+                   $"{Localizer.T("help.advice")}{Environment.NewLine}{help.Advice}"
         };
 
-        var okButton = new Button { Text = "Cerrar", DialogResult = DialogResult.OK, AutoSize = true };
+        var okButton = new Button { Text = Localizer.T("button.close"), DialogResult = DialogResult.OK, AutoSize = true };
         AcceptButton = okButton;
 
         var buttons = new FlowLayoutPanel
@@ -692,7 +692,7 @@ internal sealed class AttributeHelpDialog : Form
     public AttributeHelpDialog(string attribute)
     {
         var help = TagCatalog.GetAttributeHelp(attribute);
-        Text = $"Ayuda del atributo {attribute}";
+        Text = string.Format(Localizer.T("help.attribute.title"), attribute);
         AccessibleName = Text;
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
@@ -708,14 +708,14 @@ internal sealed class AttributeHelpDialog : Form
             WordWrap = false,
             ScrollBars = ScrollBars.Both,
             Dock = DockStyle.Fill,
-            AccessibleName = "Ayuda del atributo seleccionado",
-            Text = $"Atributo: {attribute}{Environment.NewLine}{Environment.NewLine}" +
-                   $"Para qué sirve:{Environment.NewLine}{help.Description}{Environment.NewLine}{Environment.NewLine}" +
-                   $"Valores aceptados:{Environment.NewLine}{help.Values}{Environment.NewLine}{Environment.NewLine}" +
-                   $"Consejo:{Environment.NewLine}{help.Advice}"
+            AccessibleName = Localizer.T("help.attribute.access"),
+            Text = $"{string.Format(Localizer.T("help.attribute.label"), attribute)}{Environment.NewLine}{Environment.NewLine}" +
+                   $"{Localizer.T("help.what")}{Environment.NewLine}{help.Description}{Environment.NewLine}{Environment.NewLine}" +
+                   $"{Localizer.T("help.values")}{Environment.NewLine}{help.Values}{Environment.NewLine}{Environment.NewLine}" +
+                   $"{Localizer.T("help.advice")}{Environment.NewLine}{help.Advice}"
         };
 
-        var okButton = new Button { Text = "Cerrar", DialogResult = DialogResult.OK, AutoSize = true };
+        var okButton = new Button { Text = Localizer.T("button.close"), DialogResult = DialogResult.OK, AutoSize = true };
         AcceptButton = okButton;
 
         var buttons = new FlowLayoutPanel
@@ -730,4 +730,131 @@ internal sealed class AttributeHelpDialog : Form
         Controls.Add(textBox);
         Controls.Add(buttons);
     }
+}
+
+internal sealed class PreferencesDialog : Form
+{
+    private readonly ComboBox languageCombo = new();
+
+    public PreferencesDialog(string selectedLanguage)
+    {
+        Text = Localizer.T("preferences.title");
+        AccessibleName = Text;
+        StartPosition = FormStartPosition.CenterParent;
+        MinimizeBox = false;
+        MaximizeBox = false;
+        ShowInTaskbar = false;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        ClientSize = new Size(360, 155);
+
+        languageCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+        languageCombo.Items.AddRange(
+        [
+            new LanguageChoice(Localizer.T("preferences.english"), Localizer.English),
+            new LanguageChoice(Localizer.T("preferences.spanish"), Localizer.Spanish)
+        ]);
+        languageCombo.SelectedItem = languageCombo.Items
+            .OfType<LanguageChoice>()
+            .First(choice => choice.Code == Localizer.NormalizeLanguage(selectedLanguage));
+
+        var okButton = new Button { Text = Localizer.T("button.save"), DialogResult = DialogResult.OK, AutoSize = true };
+        var cancelButton = new Button { Text = Localizer.T("button.cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+        AcceptButton = okButton;
+        CancelButton = cancelButton;
+
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.RightToLeft,
+            AutoSize = true,
+            Controls = { cancelButton, okButton }
+        };
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(8),
+            ColumnCount = 1,
+            RowCount = 4,
+            RowStyles =
+            {
+                new RowStyle(SizeType.AutoSize),
+                new RowStyle(SizeType.AutoSize),
+                new RowStyle(SizeType.Percent, 100),
+                new RowStyle(SizeType.AutoSize)
+            }
+        };
+
+        layout.Controls.Add(new Label { Text = Localizer.T("preferences.language"), AutoSize = true }, 0, 0);
+        layout.Controls.Add(languageCombo, 0, 1);
+        layout.Controls.Add(new Label { Text = Localizer.T("preferences.restartless"), AutoSize = true }, 0, 2);
+        layout.Controls.Add(buttons, 0, 3);
+        Controls.Add(layout);
+    }
+
+    public string SelectedLanguage => ((LanguageChoice)languageCombo.SelectedItem!).Code;
+}
+
+internal sealed class LanguageChoiceDialog : Form
+{
+    private readonly ComboBox languageCombo = new();
+
+    public LanguageChoiceDialog()
+    {
+        Text = Localizer.T("language.title");
+        AccessibleName = Text;
+        StartPosition = FormStartPosition.CenterScreen;
+        MinimizeBox = false;
+        MaximizeBox = false;
+        ShowInTaskbar = false;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        ClientSize = new Size(360, 150);
+
+        languageCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+        languageCombo.Items.AddRange(
+        [
+            new LanguageChoice(Localizer.T("language.english"), Localizer.English),
+            new LanguageChoice(Localizer.T("language.spanish"), Localizer.Spanish)
+        ]);
+        languageCombo.SelectedIndex = 0;
+
+        var okButton = new Button { Text = Localizer.T("button.save"), DialogResult = DialogResult.OK, AutoSize = true };
+        AcceptButton = okButton;
+
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.RightToLeft,
+            AutoSize = true,
+            Controls = { okButton }
+        };
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(8),
+            ColumnCount = 1,
+            RowCount = 4,
+            RowStyles =
+            {
+                new RowStyle(SizeType.AutoSize),
+                new RowStyle(SizeType.AutoSize),
+                new RowStyle(SizeType.Percent, 100),
+                new RowStyle(SizeType.AutoSize)
+            }
+        };
+
+        layout.Controls.Add(new Label { Text = Localizer.T("language.message"), AutoSize = true }, 0, 0);
+        layout.Controls.Add(languageCombo, 0, 1);
+        layout.Controls.Add(new Panel(), 0, 2);
+        layout.Controls.Add(buttons, 0, 3);
+        Controls.Add(layout);
+    }
+
+    public string SelectedLanguage => ((LanguageChoice)languageCombo.SelectedItem!).Code;
+}
+
+internal sealed record LanguageChoice(string Name, string Code)
+{
+    public override string ToString() => Name;
 }

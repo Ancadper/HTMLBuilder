@@ -7,8 +7,7 @@ namespace HTMLBuilder.Models;
 
 public sealed class HtmlDocument
 {
-    private const string DefaultLanguage = "es";
-    private const string DefaultTitle = "Documento sin título";
+    private const string DefaultLanguage = "en";
     private static readonly Regex TokenRegex = new("<!--.*?-->|<!DOCTYPE.*?>|</?[^>]+>", RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
     private static readonly Regex AttributeRegex = new("([a-zA-Z_:][a-zA-Z0-9_:\\-.]*)\\s*(?:=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s\"'=<`>]+)))?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex WhitespaceRegex = new("\\s+", RegexOptions.Compiled);
@@ -16,12 +15,12 @@ public sealed class HtmlDocument
     public HtmlDocument()
     {
         Root = new("html");
-        Root.Attributes["lang"] = DefaultLanguage;
+        Root.Attributes["lang"] = Localizer.CurrentLanguage;
 
         Head = new("head");
         Head.Children.Add(new ElementNode("meta") { Attributes = { ["charset"] = "utf-8" } });
         Head.Children.Add(new ElementNode("meta") { Attributes = { ["name"] = "viewport", ["content"] = "width=device-width, initial-scale=1" } });
-        Head.Children.Add(new ElementNode("title", DefaultTitle));
+        Head.Children.Add(new ElementNode("title", DefaultTitle()));
 
         Body = new("body");
 
@@ -36,7 +35,7 @@ public sealed class HtmlDocument
     public string Title
     {
         get => TitleNode().Text;
-        set => TitleNode().Text = string.IsNullOrWhiteSpace(value) ? DefaultTitle : value.Trim();
+        set => TitleNode().Text = string.IsNullOrWhiteSpace(value) ? DefaultTitle() : value.Trim();
     }
 
     public string Language
@@ -55,7 +54,7 @@ public sealed class HtmlDocument
 
         if (document.Head.Children.All(child => !string.Equals(child.Tag, "title", StringComparison.OrdinalIgnoreCase)))
         {
-            document.Title = "HTML importado";
+            document.Title = Localizer.T("default.imported");
         }
 
         return document;
@@ -314,10 +313,12 @@ public sealed class HtmlDocument
             return existing;
         }
 
-        var title = new ElementNode("title", DefaultTitle);
+        var title = new ElementNode("title", DefaultTitle());
         Head.Children.Add(title);
         return title;
     }
+
+    private static string DefaultTitle() => Localizer.T("default.untitled");
 
     private static IEnumerable<ElementNode> ChildNodes(ElementNode node)
     {

@@ -409,8 +409,59 @@ internal static class TagCatalog
         ["aria-hidden"] = ["true", "false"]
     };
 
+    private static readonly Dictionary<string, TagHelp> EnglishTagHelp = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["html"] = Help("Root element of the document.", "Usually carries lang to identify the main language.", "It normally contains head and body as direct children."),
+        ["head"] = Help("Container for document metadata.", "Usually includes title, meta, and link.", "Use it to configure the page, not for visible content."),
+        ["body"] = Help("Container for visible page content.", "Can contain headings, sections, forms, tables, and other blocks.", "Most content the user sees belongs inside body."),
+        ["title"] = Help("Document title.", "Used by browsers and assistive technology.", "Keep it short, clear, and descriptive."),
+        ["meta"] = Help("Document metadata.", "Use charset, or name together with content.", "Useful for viewport, description, author, and encoding data."),
+        ["link"] = Help("Links external resources.", "Usually uses rel and href.", "Commonly used for stylesheets, icons, and preloads."),
+        ["a"] = Help("Hyperlink.", "Requires href; visible text should explain the destination.", "Avoid generic text such as 'click here'."),
+        ["img"] = Help("Embeds an image.", "Requires src and alt; alt can be empty for decorative images.", "Describe the useful information, not just the appearance."),
+        ["form"] = Help("Form for collecting data.", "Controls need accessible names through labels or ARIA.", "Group related inputs and make submission intent clear."),
+        ["input"] = Help("Form control.", "Should have an accessible name from label, aria-label, or aria-labelledby.", "Associate a label whenever possible."),
+        ["button"] = Help("Action button.", "Needs visible text or an accessible name.", "Use links for navigation and buttons for actions."),
+        ["table"] = Help("Data table.", "Use caption, th, scope, and headers when appropriate.", "Do not use tables only for layout."),
+        ["main"] = Help("Main document content.", "There should be only one visible main per page.", "Use it for central content, not navigation or footer material."),
+        ["nav"] = Help("Navigation block.", "Use aria-label when several navigation areas exist.", "Name the navigation area, such as primary, secondary, or footer."),
+        ["section"] = Help("Thematic section.", "Works best with a visible heading or aria-label.", "Use it when the group has a clear topic."),
+        ["article"] = Help("Independent or reusable content.", "Can use aria-labelledby when it has an internal title.", "Useful for news items, posts, or complete cards."),
+        ["div"] = Help("Generic block container.", "Can use role or aria-label when no semantic tag fits.", "Use it as a last-resort grouping element."),
+        ["span"] = Help("Generic inline text container.", "Usually does not need ARIA.", "Use it for small inline text fragments.")
+    };
+
+    private static readonly Dictionary<string, AttributeHelp> EnglishAttributeHelp = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["id"] = Attribute("Unique element identifier.", "Text without spaces, for example main-title.", "Useful for labels, headings, anchors, and styles."),
+        ["class"] = Attribute("Class or group for the element.", "One or more names separated by spaces.", "Useful for applying CSS styles."),
+        ["title"] = Attribute("Additional advisory text.", "Free text.", "Do not use it as the only important information."),
+        ["lang"] = Attribute("Language of the content.", "Codes such as en, es, fr, or es-MX.", "Use it when a section is in another language."),
+        ["href"] = Attribute("Destination of a link.", "URL, relative path, #id, mailto:, or tel:.", "The link text should explain the destination."),
+        ["src"] = Attribute("Path to a resource.", "URL or relative path.", "Used by img, audio, video, iframe, source, and track."),
+        ["alt"] = Attribute("Alternative text for an image.", "Free text or empty when decorative.", "Describe the information; do not only write 'image of'."),
+        ["aria-label"] = Attribute("Manually written accessible name.", "Free text.", "Use it when no visible text names the control."),
+        ["aria-labelledby"] = Attribute("Accessible name taken from another element.", "One or more ids separated by spaces.", "Often better than aria-label when a visible heading exists."),
+        ["aria-describedby"] = Attribute("Additional accessible description.", "One or more ids separated by spaces.", "Useful for instructions and help messages."),
+        ["role"] = Attribute("ARIA role for the element.", "button, navigation, region, alert, dialog, tab, tabpanel, and others.", "Prefer semantic HTML before adding a role."),
+        ["type"] = Attribute("Control or resource type.", "button, submit, reset, text, email, checkbox, video/mp4, and others.", "Its meaning depends on the tag."),
+        ["name"] = Attribute("Name submitted by forms or metadata.", "Simple text, preferably without spaces.", "Useful in form controls and meta elements."),
+        ["value"] = Attribute("Submitted or associated value.", "Free text.", "For buttons and options, it defines the submitted value."),
+        ["required"] = Attribute("Marks a form control as required.", "Boolean attribute: no value needed.", "Pair it with clear instructions."),
+        ["disabled"] = Attribute("Disables a control.", "Boolean attribute: no value needed.", "Disabled controls can be harder to perceive."),
+        ["hidden"] = Attribute("Hides an element.", "Boolean attribute: no value needed.", "Hidden content is normally unavailable to screen readers too."),
+        ["charset"] = Attribute("Document character set.", "Common value: utf-8.", "Usually used on meta inside head."),
+        ["content"] = Attribute("Content associated with metadata.", "Free text.", "Usually paired with name in meta elements.")
+    };
+
     public static IReadOnlyList<TagField> FieldsFor(string tag) =>
-        GetRule(tag).Fields;
+        GetRule(tag).Fields
+            .Select(field => field with
+            {
+                Label = Localizer.FieldLabel(field.Label),
+                HelpText = Localizer.FieldHelp(field.HelpText)
+            })
+            .ToArray();
 
     public static TagContentKind ContentKindFor(string tag) =>
         GetRule(tag).ContentKind;
@@ -534,21 +585,45 @@ internal static class TagCatalog
     public static IReadOnlyList<string> PresetValuesFor(string attribute) =>
         PresetAttributeValues.TryGetValue(attribute, out var values) ? values : [];
 
-    public static TagHelp GetHelp(string tag) =>
-        TagHelp.TryGetValue(tag, out var help)
+    public static TagHelp GetHelp(string tag)
+    {
+        if (!Localizer.IsSpanish)
+        {
+            return EnglishTagHelp.TryGetValue(tag, out var englishHelp)
+                ? englishHelp
+                : Help(
+                    "HTML tag available in the editor.",
+                    "It may accept global attributes such as id, class, lang, title, and selected aria-* attributes.",
+                    "Choose the tag whose meaning best matches the content.");
+        }
+
+        return TagHelp.TryGetValue(tag, out var help)
             ? help
             : Help(
                 "Etiqueta HTML disponible en el editor.",
                 "Puede aceptar atributos globales como id, class, lang, title y algunos aria-* según el caso.",
                 "Elija siempre la etiqueta con el significado más cercano al contenido.");
+    }
 
-    public static AttributeHelp GetAttributeHelp(string attribute) =>
-        AttributeHelp.TryGetValue(attribute, out var help)
+    public static AttributeHelp GetAttributeHelp(string attribute)
+    {
+        if (!Localizer.IsSpanish)
+        {
+            return EnglishAttributeHelp.TryGetValue(attribute, out var englishHelp)
+                ? englishHelp
+                : Attribute(
+                    "Attribute available in the editor.",
+                    "Check the specific tag documentation if you need exact values.",
+                    "Use simple, semantic attributes whenever possible.");
+        }
+
+        return AttributeHelp.TryGetValue(attribute, out var help)
             ? help
             : Attribute(
                 "Atributo disponible en el editor.",
                 "Consulte la documentación de la etiqueta concreta si necesita valores específicos.",
                 "Use atributos simples y semánticos siempre que sea posible.");
+    }
 
     private static TagRule GetRule(string tag) =>
         Rules.TryGetValue(tag, out var rule) ? rule : Text(tag);
