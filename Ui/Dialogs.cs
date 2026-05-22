@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using HTMLBuilder.Models;
 
 namespace HTMLBuilder.Ui;
 
@@ -6,6 +7,7 @@ internal sealed partial class ElementDialog : Form
 {
     private static readonly Regex TagPattern = new("^[a-z][a-z0-9-]*$", RegexOptions.Compiled);
     private readonly string parentTag;
+    private readonly bool hasVisibleChildContent;
     private readonly ComboBox tagCombo = new();
     private readonly Label parentHintLabel = CreateLabel(string.Empty);
     private readonly Label fieldTitleLabel = CreateLabel(Localizer.T("label.tagFields"));
@@ -16,9 +18,10 @@ internal sealed partial class ElementDialog : Form
     private readonly Dictionary<string, string> attributes = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, TextBox> generatedFieldBoxes = new(StringComparer.OrdinalIgnoreCase);
 
-    public ElementDialog(string title, string parentTag, string tag = "p", string text = "", IReadOnlyDictionary<string, string>? existingAttributes = null)
+    public ElementDialog(string title, string parentTag, string tag = "p", string text = "", IReadOnlyDictionary<string, string>? existingAttributes = null, bool hasVisibleChildContent = false)
     {
         this.parentTag = parentTag;
+        this.hasVisibleChildContent = hasVisibleChildContent;
         ConfigureModalForm(title, new Size(560, 590));
 
         if (existingAttributes is not null)
@@ -154,10 +157,23 @@ internal sealed partial class ElementDialog : Form
             return;
         }
 
-        if (string.Equals(SelectedTag, "a", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(textBox.Text))
+        if (TagCatalog.RequiresVisibleContent(SelectedTag) && string.IsNullOrWhiteSpace(textBox.Text) && !hasVisibleChildContent)
         {
-            MessageBox.Show(this, Localizer.T("msg.anchorNeedsText"), Localizer.T("title.requiredText"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, string.Format(Localizer.T("msg.requiredVisibleContent"), SelectedTag), Localizer.T("title.requiredText"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
+        }
+
+        var normalizedNode = new ElementNode(SelectedTag);
+        foreach (var pair in attributes)
+        {
+            normalizedNode.Attributes[pair.Key] = pair.Value;
+        }
+
+        TagCatalog.NormalizeAttributes(normalizedNode);
+        attributes.Clear();
+        foreach (var pair in normalizedNode.Attributes)
+        {
+            attributes[pair.Key] = pair.Value;
         }
 
         DialogResult = DialogResult.OK;

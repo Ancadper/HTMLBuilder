@@ -223,7 +223,13 @@ public sealed class MainForm : Form
         try
         {
             var html = File.ReadAllText(dialog.FileName);
-            document = HtmlBuilderDocument.FromHtml(html);
+            var importedDocument = HtmlBuilderDocument.FromHtml(html);
+            if (!ValidateForOutput(importedDocument))
+            {
+                return;
+            }
+
+            document = importedDocument;
             currentPath = dialog.FileName;
             RefreshAll();
         }
@@ -235,6 +241,11 @@ public sealed class MainForm : Form
 
     private void OnSave(object? sender, EventArgs eventArgs)
     {
+        if (!ValidateForOutput(document))
+        {
+            return;
+        }
+
         using var dialog = new SaveFileDialog
         {
             Title = Localizer.T("dialog.saveTitle"),
@@ -298,6 +309,12 @@ public sealed class MainForm : Form
             return;
         }
 
+        if (!TagCatalog.CanAppendChild(parent, dialog.SelectedTag, out var appendError))
+        {
+            MessageBox.Show(this, appendError, Localizer.T("title.invalidStructure"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
         var child = new ElementNode(dialog.SelectedTag, dialog.ElementText);
         ApplyAttributes(child, dialog.ElementAttributes);
         parent.Children.Add(child);
@@ -314,7 +331,7 @@ public sealed class MainForm : Form
         }
 
         var parent = document.FindParent(node.NodeId) ?? document.Body;
-        using var dialog = new ElementDialog(Localizer.T("title.editElement"), parent.Tag, node.Tag, node.Text, node.Attributes);
+        using var dialog = new ElementDialog(Localizer.T("title.editElement"), parent.Tag, node.Tag, node.Text, node.Attributes, node.Children.Count > 0);
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
             return;
@@ -345,8 +362,18 @@ public sealed class MainForm : Form
     private void MoveSelected(int direction)
     {
         var node = SelectedNode();
+        var beforeMove = TagCatalog.ValidateDocument(document).Select(issue => issue.Message).ToHashSet(StringComparer.Ordinal);
         if (document.MoveNode(node.NodeId, direction))
         {
+            var afterMove = TagCatalog.ValidateDocument(document);
+            if (afterMove.Any(issue => !beforeMove.Contains(issue.Message)))
+            {
+                document.MoveNode(node.NodeId, -direction);
+                MessageBox.Show(this, afterMove.First(issue => !beforeMove.Contains(issue.Message)).Message, Localizer.T("title.invalidStructure"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+                RefreshAll();
+                return;
+            }
+
             RefreshAll();
             return;
         }
@@ -372,6 +399,7 @@ public sealed class MainForm : Form
         node.Attributes[dialog.AttributeName] = TagCatalog.IsBooleanAttribute(dialog.AttributeName)
             ? string.Empty
             : dialog.AttributeValue;
+        TagCatalog.NormalizeAttributes(node);
         RefreshAll();
     }
 
@@ -390,18 +418,39 @@ public sealed class MainForm : Form
             return;
         }
 
+        if (TagCatalog.IsRequiredAttribute(node.Tag, dialog.SelectedAttribute))
+        {
+            MessageBox.Show(
+                this,
+                string.Format(Localizer.T("msg.requiredAttributeRemoval"), dialog.SelectedAttribute, node.Tag),
+                Localizer.T("title.requiredField"),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
         node.Attributes.Remove(dialog.SelectedAttribute);
         RefreshAll();
     }
 
     private void OnCopyHtml(object? sender, EventArgs eventArgs)
     {
+        if (!ValidateForOutput(document))
+        {
+            return;
+        }
+
         Clipboard.SetText(document.ToHtml());
         MessageBox.Show(this, Localizer.T("msg.copiedHtml"), Localizer.T("title.copyHtml"), MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void OnOpenInBrowser(object? sender, EventArgs eventArgs)
     {
+        if (!ValidateForOutput(document))
+        {
+            return;
+        }
+
         try
         {
             var previewDirectory = Path.Combine(AppContext.BaseDirectory, "preview");
@@ -426,11 +475,37 @@ public sealed class MainForm : Form
     {
         MessageBox.Show(
             this,
-            Localizer.T("about.text"),
+            string.Format(Localizer.T("about.text"), DisplayVersion()),
             Localizer.T("menu.about"),
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
     }
+
+    private bool ValidateForOutput(HtmlBuilderDocument candidate)
+    {
+        var issues = TagCatalog.ValidateDocument(candidate);
+        if (issues.Count == 0)
+        {
+            return true;
+        }
+
+        var firstIssues = string.Join(Environment.NewLine, issues.Take(12).Select(issue => $"- {issue.Message}"));
+        if (issues.Count > 12)
+        {
+            firstIssues += Environment.NewLine + $"- +{issues.Count - 12}";
+        }
+
+        MessageBox.Show(
+            this,
+            string.Format(Localizer.T("msg.invalidDocument"), firstIssues),
+            Localizer.T("title.invalidDocument"),
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error);
+        return false;
+    }
+
+    private static string DisplayVersion() =>
+        typeof(MainForm).Assembly.GetName().Version?.ToString(3) ?? Application.ProductVersion;
 
     private static ToolStripMenuItem MenuItem(string text, Keys shortcut, EventHandler handler)
     {
@@ -451,6 +526,8 @@ public sealed class MainForm : Form
         {
             node.Attributes[pair.Key] = pair.Value;
         }
+
+        TagCatalog.NormalizeAttributes(node);
     }
 }
 

@@ -1,3 +1,5 @@
+using HTMLBuilder.Models;
+
 namespace HTMLBuilder.Ui;
 
 internal enum TagContentKind
@@ -13,6 +15,8 @@ internal sealed record TagHelp(string Description, string Accessibility, string 
 internal sealed record TagField(string AttributeName, string Label, bool Required, string HelpText, bool AllowsEmpty = false);
 
 internal sealed record AttributeHelp(string Description, string Values, string Advice);
+
+internal sealed record HtmlValidationIssue(string Message);
 
 internal sealed record TagRule(
     string Name,
@@ -125,42 +129,42 @@ internal static class TagCatalog
             ["rel", "href", "type"], ["head"], allowGlobalAttributes: false),
         ["header"] = Flow("header", ["aria-label"]),
         ["nav"] = Flow("nav", ["aria-label"]),
-        ["main"] = Flow("main", ["aria-label"]),
+        ["main"] = Flow("main", ["aria-label"], ["body"]),
         ["section"] = Flow("section", ["aria-label", "aria-labelledby"]),
         ["article"] = Flow("article", ["aria-label", "aria-labelledby"]),
         ["aside"] = Flow("aside", ["aria-label", "aria-labelledby"]),
         ["footer"] = Flow("footer", ["aria-label"]),
-        ["h1"] = Text("h1"),
-        ["h2"] = Text("h2"),
-        ["h3"] = Text("h3"),
-        ["h4"] = Text("h4"),
-        ["h5"] = Text("h5"),
-        ["h6"] = Text("h6"),
-        ["p"] = Text("p"),
+        ["h1"] = Phrasing("h1"),
+        ["h2"] = Phrasing("h2"),
+        ["h3"] = Phrasing("h3"),
+        ["h4"] = Phrasing("h4"),
+        ["h5"] = Phrasing("h5"),
+        ["h6"] = Phrasing("h6"),
+        ["p"] = Phrasing("p"),
         ["a"] = Rule("a", TagContentKind.TextAndChildren,
             [new("href", "Enlace o URL", true, "Destino del enlace. Ejemplo: https://ejemplo.com o contacto.html.")],
             ["href", "target", "rel", "download"]),
-        ["strong"] = Text("strong"),
-        ["em"] = Text("em"),
-        ["small"] = Text("small"),
-        ["mark"] = Text("mark"),
+        ["strong"] = Phrasing("strong"),
+        ["em"] = Phrasing("em"),
+        ["small"] = Phrasing("small"),
+        ["mark"] = Phrasing("mark"),
         ["blockquote"] = Rule("blockquote", TagContentKind.TextAndChildren,
             [new("cite", "Fuente de la cita", false, "URL de la fuente original de la cita.")],
             ["cite"]),
         ["q"] = Rule("q", TagContentKind.Text,
             [new("cite", "Fuente de la cita", false, "URL de la fuente original de la cita.")],
             ["cite"]),
-        ["cite"] = Text("cite"),
-        ["code"] = Text("code"),
-        ["pre"] = Text("pre"),
+        ["cite"] = Phrasing("cite"),
+        ["code"] = Phrasing("code"),
+        ["pre"] = Phrasing("pre"),
         ["br"] = Rule("br", TagContentKind.Empty, [], []),
         ["hr"] = Rule("hr", TagContentKind.Empty, [], []),
-        ["ul"] = Flow("ul"),
+        ["ul"] = Rule("ul", TagContentKind.Children, [], []),
         ["ol"] = Rule("ol", TagContentKind.Children,
             [new("start", "Número inicial", false, "Primer número de la lista si no empieza en 1.")],
             ["start"]),
         ["li"] = Rule("li", TagContentKind.TextAndChildren, [], [], ["ul", "ol"]),
-        ["figure"] = Flow("figure"),
+        ["figure"] = Rule("figure", TagContentKind.Children, [], []),
         ["figcaption"] = Rule("figcaption", TagContentKind.TextAndChildren, [], [], ["figure"]),
         ["img"] = Rule("img", TagContentKind.Empty,
             [
@@ -168,7 +172,7 @@ internal static class TagCatalog
                 new("alt", "Texto alternativo", true, "Describe la información útil de la imagen. Puede quedar vacío si es decorativa.", AllowsEmpty: true)
             ],
             ["src", "alt", "width", "height", "loading"]),
-        ["picture"] = Flow("picture"),
+        ["picture"] = Rule("picture", TagContentKind.Children, [], []),
         ["source"] = Rule("source", TagContentKind.Empty,
             [
                 new("src", "Archivo multimedia", true, "Ruta del recurso."),
@@ -198,7 +202,7 @@ internal static class TagCatalog
                 new("title", "Título accesible", true, "Describe el contenido del marco para lectores de pantalla.")
             ],
             ["src", "title", "width", "height", "loading"]),
-        ["table"] = Flow("table"),
+        ["table"] = Rule("table", TagContentKind.Children, [], []),
         ["caption"] = Rule("caption", TagContentKind.Text, [], [], ["table"]),
         ["thead"] = Rule("thead", TagContentKind.Children, [], [], ["table"]),
         ["tbody"] = Rule("tbody", TagContentKind.Children, [], [], ["table"]),
@@ -216,7 +220,7 @@ internal static class TagCatalog
                 new("method", "Método", false, "Valores: get o post.")
             ],
             ["action", "method"]),
-        ["fieldset"] = Flow("fieldset"),
+        ["fieldset"] = Rule("fieldset", TagContentKind.Children, [], []),
         ["legend"] = Rule("legend", TagContentKind.Text, [], [], ["fieldset"]),
         ["label"] = Rule("label", TagContentKind.TextAndChildren,
             [new("for", "ID del control asociado", false, "Debe coincidir con el id del input, select o textarea.")],
@@ -241,14 +245,14 @@ internal static class TagCatalog
         ["button"] = Rule("button", TagContentKind.TextAndChildren,
             [new("type", "Tipo de botón", true, "Valores recomendados: button, submit o reset.")],
             ["type", "name", "value", "disabled", "aria-label"]),
-        ["details"] = Flow("details", ["open"]),
+        ["details"] = Rule("details", TagContentKind.Children, [], ["open"]),
         ["summary"] = Rule("summary", TagContentKind.TextAndChildren, [], [], ["details"]),
         ["time"] = Rule("time", TagContentKind.Text,
             [new("datetime", "Fecha u hora legible por máquina", false, "Versión ISO de la fecha u hora visible.")],
             ["datetime"]),
-        ["address"] = Flow("address"),
+        ["address"] = Phrasing("address"),
         ["div"] = Flow("div"),
-        ["span"] = Text("span")
+        ["span"] = Phrasing("span")
     };
 
     public static readonly string[] CommonTags = TagOrder;
@@ -261,17 +265,41 @@ internal static class TagCatalog
         "html", "head", "body"
     };
 
-    private static readonly HashSet<string> PhrasingContainers = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> FlowTags = new(StringComparer.OrdinalIgnoreCase)
     {
-        "p", "h1", "h2", "h3", "h4", "h5", "h6",
-        "a", "strong", "em", "small", "mark", "q", "cite", "code", "pre",
-        "label", "button", "time", "span"
+        "header", "nav", "main", "section", "article", "aside", "footer", "address", "div",
+        "p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "ul", "ol", "li",
+        "figure", "figcaption", "picture", "img", "audio", "video", "iframe", "table",
+        "form", "fieldset", "details", "hr", "pre", "span", "a", "strong", "em", "small",
+        "mark", "cite", "code", "q", "br", "label", "input", "textarea", "select",
+        "button", "time"
     };
 
-    private static readonly HashSet<string> PhrasingChildren = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> PhrasingTags = new(StringComparer.OrdinalIgnoreCase)
     {
-        "a", "strong", "em", "small", "mark", "q", "cite", "code",
-        "br", "img", "input", "label", "span", "time"
+        "span", "a", "strong", "em", "small", "mark", "cite", "code", "q", "br",
+        "img", "label", "input", "textarea", "select", "button", "time"
+    };
+
+    private static readonly HashSet<string> PhrasingParents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "p", "h1", "h2", "h3", "h4", "h5", "h6", "span", "strong", "em", "small",
+        "mark", "cite", "code", "pre", "figcaption", "th", "summary"
+    };
+
+    private static readonly HashSet<string> AnchorChildren = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "span", "strong", "em", "small", "mark", "cite", "code", "q", "br", "img", "time"
+    };
+
+    private static readonly HashSet<string> ButtonChildren = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "span", "strong", "em", "small", "mark", "cite", "code", "q", "br", "img", "time"
+    };
+
+    private static readonly HashSet<string> AddressChildren = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "a", "br", "span", "strong", "em", "small", "mark", "cite", "code", "q", "img", "time"
     };
 
     private static readonly Dictionary<string, TagHelp> TagHelp = new(StringComparer.OrdinalIgnoreCase)
@@ -516,6 +544,11 @@ internal static class TagCatalog
                 || string.Equals(childTag, "link", StringComparison.OrdinalIgnoreCase);
         }
 
+        if (string.Equals(parentTag, "body", StringComparison.OrdinalIgnoreCase))
+        {
+            return FlowTags.Contains(childTag);
+        }
+
         if (string.Equals(parentTag, "ul", StringComparison.OrdinalIgnoreCase)
             || string.Equals(parentTag, "ol", StringComparison.OrdinalIgnoreCase))
         {
@@ -542,16 +575,79 @@ internal static class TagCatalog
                 || string.Equals(childTag, "img", StringComparison.OrdinalIgnoreCase);
         }
 
-        if (PhrasingContainers.Contains(parentTag))
+        if (string.Equals(parentTag, "audio", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(parentTag, "video", StringComparison.OrdinalIgnoreCase))
         {
-            return PhrasingChildren.Contains(childTag)
-                && !(string.Equals(parentTag, "a", StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(childTag, "a", StringComparison.OrdinalIgnoreCase));
+            return string.Equals(childTag, "source", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(childTag, "track", StringComparison.OrdinalIgnoreCase);
         }
 
-        return !string.Equals(childTag, "title", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(childTag, "meta", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(childTag, "link", StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(parentTag, "thead", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(parentTag, "tbody", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(parentTag, "tfoot", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(childTag, "tr", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(parentTag, "tr", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Equals(childTag, "th", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(childTag, "td", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(parentTag, "figure", StringComparison.OrdinalIgnoreCase))
+        {
+            return FlowTags.Contains(childTag)
+                || string.Equals(childTag, "figcaption", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(parentTag, "details", StringComparison.OrdinalIgnoreCase))
+        {
+            return FlowTags.Contains(childTag)
+                || string.Equals(childTag, "summary", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(parentTag, "fieldset", StringComparison.OrdinalIgnoreCase))
+        {
+            return FlowTags.Contains(childTag)
+                || string.Equals(childTag, "legend", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(parentTag, "form", StringComparison.OrdinalIgnoreCase))
+        {
+            return FlowTags.Contains(childTag)
+                && !string.Equals(childTag, "form", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(parentTag, "label", StringComparison.OrdinalIgnoreCase))
+        {
+            return PhrasingTags.Contains(childTag)
+                && !string.Equals(childTag, "label", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(childTag, "button", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (string.Equals(parentTag, "a", StringComparison.OrdinalIgnoreCase))
+        {
+            return AnchorChildren.Contains(childTag);
+        }
+
+        if (string.Equals(parentTag, "button", StringComparison.OrdinalIgnoreCase))
+        {
+            return ButtonChildren.Contains(childTag);
+        }
+
+        if (string.Equals(parentTag, "address", StringComparison.OrdinalIgnoreCase))
+        {
+            return AddressChildren.Contains(childTag);
+        }
+
+        if (PhrasingParents.Contains(parentTag))
+        {
+            return PhrasingTags.Contains(childTag);
+        }
+
+        return FlowTags.Contains(childTag)
+            && !string.Equals(childTag, "main", StringComparison.OrdinalIgnoreCase);
     }
 
     public static IReadOnlyList<string> AttributesFor(string tag)
@@ -575,6 +671,107 @@ internal static class TagCatalog
 
     public static bool IsAttributeAllowed(string tag, string attribute) =>
         AttributesFor(tag).Contains(attribute, StringComparer.OrdinalIgnoreCase);
+
+    public static bool CanAppendChild(ElementNode parent, string childTag, out string error)
+    {
+        if (!CanAddChild(parent.Tag, childTag))
+        {
+            error = Localizer.IsSpanish
+                ? $"La etiqueta {childTag} no se puede agregar dentro de {parent.Tag}."
+                : $"The {childTag} tag cannot be added inside {parent.Tag}.";
+            return false;
+        }
+
+        if (string.Equals(parent.Tag, "table", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(childTag, "caption", StringComparison.OrdinalIgnoreCase)
+            && parent.Children.Count > 0)
+        {
+            error = Rule("caption must be the first child of table.", "caption debe ser el primer hijo de table.");
+            return false;
+        }
+
+        if (string.Equals(parent.Tag, "fieldset", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(childTag, "legend", StringComparison.OrdinalIgnoreCase)
+            && parent.Children.Count > 0)
+        {
+            error = Rule("legend must be the first child of fieldset.", "legend debe ser el primer hijo de fieldset.");
+            return false;
+        }
+
+        if (string.Equals(parent.Tag, "details", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(childTag, "summary", StringComparison.OrdinalIgnoreCase)
+            && parent.Children.Count > 0)
+        {
+            error = Rule("summary must be the first child of details.", "summary debe ser el primer hijo de details.");
+            return false;
+        }
+
+        if (string.Equals(parent.Tag, "picture", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(childTag, "img", StringComparison.OrdinalIgnoreCase)
+                && parent.Children.Any(child => string.Equals(child.Tag, "img", StringComparison.OrdinalIgnoreCase)))
+            {
+                error = Rule("picture must contain exactly one img.", "picture debe contener exactamente un img.");
+                return false;
+            }
+
+            if (string.Equals(childTag, "source", StringComparison.OrdinalIgnoreCase)
+                && parent.Children.Any(child => string.Equals(child.Tag, "img", StringComparison.OrdinalIgnoreCase)))
+            {
+                error = Rule("source elements must appear before img inside picture.", "Los elementos source deben ir antes de img dentro de picture.");
+                return false;
+            }
+        }
+
+        error = string.Empty;
+        return true;
+    }
+
+    public static IReadOnlyList<HtmlValidationIssue> ValidateDocument(HTMLBuilder.Models.HtmlDocument document)
+    {
+        var issues = new List<HtmlValidationIssue>();
+        if (!string.Equals(document.Root.Tag, "html", StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(Issue("The document root must be html.", "El nodo raíz del documento debe ser html."));
+            return issues;
+        }
+
+        if (document.Root.Children.Count != 2
+            || !ReferenceEquals(document.Root.Children[0], document.Head)
+            || !ReferenceEquals(document.Root.Children[1], document.Body))
+        {
+            issues.Add(Issue("html must contain head followed by body.", "html debe contener head seguido de body."));
+        }
+
+        ValidateNode(document.Root, [], issues);
+        return issues;
+    }
+
+    public static void NormalizeAttributes(ElementNode node)
+    {
+        if (!string.Equals(node.Tag, "a", StringComparison.OrdinalIgnoreCase)
+            || !node.Attributes.TryGetValue("target", out var target)
+            || !string.Equals(target, "_blank", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var relValues = node.Attributes.GetValueOrDefault("rel", string.Empty)
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        relValues.Add("noopener");
+        relValues.Add("noreferrer");
+        node.Attributes["rel"] = string.Join(" ", relValues);
+    }
+
+    public static void NormalizeTree(ElementNode node)
+    {
+        NormalizeAttributes(node);
+        foreach (var child in node.Children)
+        {
+            NormalizeTree(child);
+        }
+    }
 
     public static bool IsBooleanAttribute(string attribute) =>
         AttributeRules.TryGetValue(attribute, out var rule) && rule.IsBoolean;
@@ -625,6 +822,275 @@ internal static class TagCatalog
                 "Use atributos simples y semánticos siempre que sea posible.");
     }
 
+    public static bool RequiresVisibleContent(string tag) =>
+        RequiredVisibleContent.Contains(tag);
+
+    public static bool IsRequiredAttribute(string tag, string attribute) =>
+        FieldsFor(tag).Any(field => field.Required && string.Equals(field.AttributeName, attribute, StringComparison.OrdinalIgnoreCase));
+
+    private static readonly HashSet<string> RequiredVisibleContent = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "title", "h1", "h2", "h3", "h4", "h5", "h6", "p", "a", "strong", "em",
+        "small", "mark", "blockquote", "q", "cite", "code", "pre", "time", "li",
+        "figcaption", "caption", "th", "legend", "label", "option", "button", "summary"
+    };
+
+    private static void ValidateNode(ElementNode node, IReadOnlyList<string> ancestors, List<HtmlValidationIssue> issues)
+    {
+        var rule = GetRule(node.Tag);
+        var canHaveText = rule.ContentKind is TagContentKind.Text or TagContentKind.TextAndChildren;
+        var canHaveChildren = rule.ContentKind is TagContentKind.Children or TagContentKind.TextAndChildren;
+
+        if (!canHaveText && !string.IsNullOrWhiteSpace(node.Text))
+        {
+            issues.Add(Issue(
+                $"{node.Tag} cannot contain direct text.",
+                $"{node.Tag} no puede contener texto directo."));
+        }
+
+        if (!canHaveChildren && node.Children.Count > 0)
+        {
+            issues.Add(Issue(
+                $"{node.Tag} cannot contain child elements.",
+                $"{node.Tag} no puede contener elementos hijos."));
+        }
+
+        if (RequiresVisibleContent(node.Tag) && !HasVisibleContent(node))
+        {
+            issues.Add(Issue(
+                $"{node.Tag} must contain visible text or visible content.",
+                $"{node.Tag} debe tener texto o contenido visible."));
+        }
+
+        foreach (var attribute in node.Attributes.Keys)
+        {
+            if (!IsAttributeAllowed(node.Tag, attribute))
+            {
+                issues.Add(Issue(
+                    $"{attribute} is not allowed on {node.Tag}.",
+                    $"{attribute} no está permitido en {node.Tag}."));
+            }
+        }
+
+        ValidateRequiredAttributes(node, issues);
+        ValidateSpecialAttributes(node, issues);
+        ValidateSpecialChildren(node, issues);
+
+        foreach (var child in node.Children)
+        {
+            if (!CanAddChild(node.Tag, child.Tag))
+            {
+                issues.Add(Issue(
+                    $"{child.Tag} is not a valid child of {node.Tag}.",
+                    $"{child.Tag} no es un hijo válido de {node.Tag}."));
+            }
+
+            if (string.Equals(child.Tag, "html", StringComparison.OrdinalIgnoreCase))
+            {
+                issues.Add(Issue("html cannot be nested.", "html no puede estar dentro de otra etiqueta."));
+            }
+
+            if (string.Equals(child.Tag, "a", StringComparison.OrdinalIgnoreCase) && ancestors.Contains("a", StringComparer.OrdinalIgnoreCase)
+                || string.Equals(node.Tag, "a", StringComparison.OrdinalIgnoreCase) && string.Equals(child.Tag, "a", StringComparison.OrdinalIgnoreCase))
+            {
+                issues.Add(Issue("a cannot be nested inside a.", "a no puede estar dentro de a."));
+            }
+
+            if (string.Equals(child.Tag, "form", StringComparison.OrdinalIgnoreCase) && (ancestors.Contains("form", StringComparer.OrdinalIgnoreCase) || string.Equals(node.Tag, "form", StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(Issue("form cannot be nested inside form.", "form no puede estar dentro de form."));
+            }
+
+            if (string.Equals(child.Tag, "button", StringComparison.OrdinalIgnoreCase) && (ancestors.Contains("button", StringComparer.OrdinalIgnoreCase) || string.Equals(node.Tag, "button", StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(Issue("button cannot be nested inside button.", "button no puede estar dentro de button."));
+            }
+
+            if ((string.Equals(child.Tag, "a", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(child.Tag, "input", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(child.Tag, "select", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(child.Tag, "textarea", StringComparison.OrdinalIgnoreCase))
+                && (ancestors.Contains("button", StringComparer.OrdinalIgnoreCase) || string.Equals(node.Tag, "button", StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(Issue(
+                    $"{child.Tag} cannot be inside button.",
+                    $"{child.Tag} no puede estar dentro de button."));
+            }
+
+            if (string.Equals(child.Tag, "label", StringComparison.OrdinalIgnoreCase)
+                && (ancestors.Contains("label", StringComparer.OrdinalIgnoreCase) || string.Equals(node.Tag, "label", StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(Issue("label cannot be nested inside label.", "label no puede estar dentro de label."));
+            }
+
+            ValidateNode(child, ancestors.Append(node.Tag).ToArray(), issues);
+        }
+    }
+
+    private static void ValidateRequiredAttributes(ElementNode node, List<HtmlValidationIssue> issues)
+    {
+        foreach (var field in FieldsFor(node.Tag).Where(field => field.Required))
+        {
+            if (!node.Attributes.TryGetValue(field.AttributeName, out var value)
+                || (!field.AllowsEmpty && string.IsNullOrWhiteSpace(value)))
+            {
+                issues.Add(Issue(
+                    $"{node.Tag} requires the {field.AttributeName} attribute.",
+                    $"{node.Tag} necesita el atributo {field.AttributeName}."));
+            }
+        }
+
+        if (string.Equals(node.Tag, "meta", StringComparison.OrdinalIgnoreCase))
+        {
+            var hasCharset = HasValue(node, "charset");
+            var hasName = HasValue(node, "name");
+            var hasContent = HasValue(node, "content");
+            if (!hasCharset && !(hasName && hasContent))
+            {
+                issues.Add(Issue(
+                    "meta must have charset or name together with content.",
+                    "meta debe tener charset o name junto con content."));
+            }
+        }
+    }
+
+    private static void ValidateSpecialAttributes(ElementNode node, List<HtmlValidationIssue> issues)
+    {
+        if (string.Equals(node.Tag, "ol", StringComparison.OrdinalIgnoreCase)
+            && node.Attributes.TryGetValue("start", out var start)
+            && !string.IsNullOrWhiteSpace(start)
+            && !int.TryParse(start, out _))
+        {
+            issues.Add(Issue("ol start must be numeric.", "start de ol debe ser numérico."));
+        }
+
+        if (string.Equals(node.Tag, "form", StringComparison.OrdinalIgnoreCase)
+            && node.Attributes.TryGetValue("method", out var method)
+            && !string.IsNullOrWhiteSpace(method)
+            && !string.Equals(method, "get", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(method, "post", StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(Issue("form method must be get or post.", "method de form debe ser get o post."));
+        }
+
+        if (string.Equals(node.Tag, "input", StringComparison.OrdinalIgnoreCase))
+        {
+            var type = node.Attributes.GetValueOrDefault("type", string.Empty);
+            if (node.Attributes.ContainsKey("checked")
+                && !string.Equals(type, "checkbox", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(type, "radio", StringComparison.OrdinalIgnoreCase))
+            {
+                issues.Add(Issue("input checked only applies to checkbox or radio.", "checked de input solo aplica a checkbox o radio."));
+            }
+
+            if (node.Attributes.ContainsKey("placeholder")
+                && new[] { "checkbox", "radio", "file", "submit", "button" }.Contains(type, StringComparer.OrdinalIgnoreCase))
+            {
+                issues.Add(Issue(
+                    $"input placeholder does not apply to type {type}.",
+                    $"placeholder de input no aplica al tipo {type}."));
+            }
+        }
+    }
+
+    private static void ValidateSpecialChildren(ElementNode node, List<HtmlValidationIssue> issues)
+    {
+        if ((string.Equals(node.Tag, "ul", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.Tag, "ol", StringComparison.OrdinalIgnoreCase))
+            && !node.Children.Any(child => string.Equals(child.Tag, "li", StringComparison.OrdinalIgnoreCase)))
+        {
+            issues.Add(Issue($"{node.Tag} must contain at least one li.", $"{node.Tag} debe contener al menos un li."));
+        }
+
+        if (string.Equals(node.Tag, "select", StringComparison.OrdinalIgnoreCase)
+            && !node.Children.Any(child => string.Equals(child.Tag, "option", StringComparison.OrdinalIgnoreCase)))
+        {
+            issues.Add(Issue("select must contain at least one option.", "select debe contener al menos un option."));
+        }
+
+        if (string.Equals(node.Tag, "tr", StringComparison.OrdinalIgnoreCase)
+            && !node.Children.Any(child => string.Equals(child.Tag, "th", StringComparison.OrdinalIgnoreCase) || string.Equals(child.Tag, "td", StringComparison.OrdinalIgnoreCase)))
+        {
+            issues.Add(Issue("tr must contain at least one cell.", "tr debe contener al menos una celda."));
+        }
+
+        if (string.Equals(node.Tag, "table", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!node.Children.Any(ContainsTableRow))
+            {
+                issues.Add(Issue("table must contain a tr directly or through a table section.", "table debe contener un tr directo o dentro de una sección de tabla."));
+            }
+
+            EnsureFirstChild(node, "caption", issues);
+        }
+
+        if (string.Equals(node.Tag, "fieldset", StringComparison.OrdinalIgnoreCase))
+        {
+            EnsureFirstChild(node, "legend", issues);
+        }
+
+        if (string.Equals(node.Tag, "details", StringComparison.OrdinalIgnoreCase))
+        {
+            EnsureFirstChild(node, "summary", issues);
+        }
+
+        if (string.Equals(node.Tag, "picture", StringComparison.OrdinalIgnoreCase))
+        {
+            var imageCount = node.Children.Count(child => string.Equals(child.Tag, "img", StringComparison.OrdinalIgnoreCase));
+            if (imageCount != 1)
+            {
+                issues.Add(Issue("picture must contain exactly one img.", "picture debe contener exactamente un img."));
+            }
+
+            var imgIndex = node.Children.FindIndex(child => string.Equals(child.Tag, "img", StringComparison.OrdinalIgnoreCase));
+            if (imgIndex >= 0 && node.Children.Skip(imgIndex + 1).Any(child => string.Equals(child.Tag, "source", StringComparison.OrdinalIgnoreCase)))
+            {
+                issues.Add(Issue("source elements must appear before img inside picture.", "Los elementos source deben ir antes de img dentro de picture."));
+            }
+        }
+
+        if ((string.Equals(node.Tag, "audio", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(node.Tag, "video", StringComparison.OrdinalIgnoreCase))
+            && !HasValue(node, "src")
+            && !node.Children.Any(child => string.Equals(child.Tag, "source", StringComparison.OrdinalIgnoreCase)))
+        {
+            issues.Add(Issue($"{node.Tag} must have src or at least one source.", $"{node.Tag} debe tener src o al menos un source."));
+        }
+    }
+
+    private static void EnsureFirstChild(ElementNode node, string childTag, List<HtmlValidationIssue> issues)
+    {
+        var index = node.Children.FindIndex(child => string.Equals(child.Tag, childTag, StringComparison.OrdinalIgnoreCase));
+        if (index > 0)
+        {
+            issues.Add(Issue(
+                $"{childTag} must be the first child of {node.Tag}.",
+                $"{childTag} debe ser el primer hijo de {node.Tag}."));
+        }
+    }
+
+    private static bool ContainsTableRow(ElementNode child) =>
+        string.Equals(child.Tag, "tr", StringComparison.OrdinalIgnoreCase)
+        || child.Children.Any(grandchild => string.Equals(grandchild.Tag, "tr", StringComparison.OrdinalIgnoreCase));
+
+    private static bool HasVisibleContent(ElementNode node) =>
+        !string.IsNullOrWhiteSpace(node.Text)
+        || node.Children.Any(child =>
+            HasVisibleContent(child)
+            || string.Equals(child.Tag, "img", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(child.Tag, "input", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(child.Tag, "textarea", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(child.Tag, "select", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(child.Tag, "iframe", StringComparison.OrdinalIgnoreCase));
+
+    private static bool HasValue(ElementNode node, string attribute) =>
+        node.Attributes.TryGetValue(attribute, out var value) && !string.IsNullOrWhiteSpace(value);
+
+    private static HtmlValidationIssue Issue(string english, string spanish) => new(Rule(english, spanish));
+
+    private static string Rule(string english, string spanish) =>
+        Localizer.IsSpanish ? spanish : english;
+
     private static TagRule GetRule(string tag) =>
         Rules.TryGetValue(tag, out var rule) ? rule : Text(tag);
 
@@ -633,6 +1099,9 @@ internal static class TagCatalog
 
     private static TagRule Text(string name) =>
         Rule(name, TagContentKind.TextAndChildren, [], []);
+
+    private static TagRule Phrasing(string name, string[]? attributes = null, string[]? parents = null) =>
+        Rule(name, TagContentKind.TextAndChildren, [], attributes ?? [], parents ?? []);
 
     private static TagRule Rule(
         string name,

@@ -101,6 +101,7 @@ public sealed class HtmlDocument
 
     public string ToHtml()
     {
+        TagCatalog.NormalizeTree(Root);
         var builder = new StringBuilder();
         builder.AppendLine("<!doctype html>");
         builder.AppendLine(RenderNode(Root, 0));
@@ -242,7 +243,9 @@ public sealed class HtmlDocument
         }
 
         var decoded = WebUtility.HtmlDecode(rawText);
-        var normalized = WhitespaceRegex.Replace(decoded, " ").Trim();
+        var normalized = string.Equals(current.Tag, "pre", StringComparison.OrdinalIgnoreCase)
+            ? decoded
+            : WhitespaceRegex.Replace(decoded, " ").Trim();
         if (string.IsNullOrWhiteSpace(normalized))
         {
             return;
