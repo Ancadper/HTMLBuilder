@@ -56,4 +56,11 @@ You can open issues for suggestions, bug reports or general feedback.
 
 ## License
 
-This code is available for review and feedback only. Copying, modifying, redistributing or using it without written permission from the author is not allowed.
+This project is licensed under the Arash Attribution License.
+
+You may use, modify, distribute, sublicense, sell, host, deploy, and include this project in
+personal, commercial, or proprietary software.
+
+Please preserve the following attribution in a reasonably accessible location:
+
+Based on [HTMLBuilder](https://github.com/Ancadper/HTMLBuilder) by [Arash](https://Ancadper.com).
